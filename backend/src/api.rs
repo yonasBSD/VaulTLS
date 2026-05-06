@@ -211,19 +211,22 @@ pub(crate) async fn oidc_login(
         // OIDC is not active? Maybe it has since become available
         // Retry setting up OIDC
         let oidc_settings = state.settings.get_oidc();
-        let oidc = match oidc_settings.auth_url.is_empty() {
-            true => None,
-            false => {
-                debug!("OIDC enabled. Trying to connect to {}.", oidc_settings.auth_url);
-                OidcAuth::new(&oidc_settings).await.ok()
-            }
+        let new_oidc = if !oidc_settings.auth_url.is_empty() {
+            debug!("OIDC enabled. Trying to connect to {}.", oidc_settings.auth_url);
+            OidcAuth::new(&oidc_settings).await.ok()
+        } else {
+            None
         };
 
-        if oidc.is_none() {
-            warn!("A user tried to login with OIDC, but OIDC is not configured.");
-            return Err(ApiError::BadRequest("OIDC not configured".to_string()))
-        } else {
-            info!("OIDC is active.");
+        match new_oidc {
+            Some(val) => {
+                info!("OIDC is active.");
+                *oidc_option = Some(val);
+            }
+            None => {
+                warn!("A user tried to login with OIDC, but OIDC is not configured.");
+                return Err(ApiError::BadRequest("OIDC not configured".to_string()));
+            }
         }
     }
 
